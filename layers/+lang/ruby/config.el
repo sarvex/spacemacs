@@ -32,6 +32,10 @@ Possible values are `robe', and `lsp'.
 If `nil' then `robe' is the default backend unless `lsp' layer is used.")
 (put 'ruby-backend 'safe-local-variable #'symbolp)
 
+(defvar ruby-lsp-server 'solargraph
+  "Language server to use for lsp backend. Possible values are `solargraph' and `sorbet'")
+(put 'ruby-lsp-server 'safe-local-variable #'symbolp)
+
 (defvar ruby-enable-enh-ruby-mode nil
   "If non-nil, use `enh-ruby-mode' package instead of the built-in Ruby Mode.")
 
