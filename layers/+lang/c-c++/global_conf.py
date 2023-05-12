@@ -68,13 +68,12 @@ SUBDIRS = ['build']
 
 # This function is called by ycmd.
 def FlagsForFile(filename):
-    logging.info("%s: Getting flags for %s" % (__file__, filename))
+    logging.info(f"{__file__}: Getting flags for {filename}")
     root = os.path.realpath(filename)
     flags = FlagsFromCompilationDatabase(root, filename)
     if not flags:
         flags = FlagsFromClangComplete(root, filename)
-    extra_flags = GetUserExtraFlags(filename)
-    if extra_flags:
+    if extra_flags := GetUserExtraFlags(filename):
         if flags:
             flags += extra_flags
         else:
@@ -85,14 +84,14 @@ def FlagsForFile(filename):
                      % (os.path.basename(filename), "\n\t\t".join(flags)))
     else:
         flags = []
-        logging.error("%s: No flags were found !" % (os.path.basename(filename)))
+        logging.error(f"{os.path.basename(filename)}: No flags were found !")
     return { 'flags': flags, 'do_cache': True }
 
 def FlagsFromClangComplete(root, filename):
     try:
         clang_complete_path = FindNearest(root, '.clang_complete', filename)
         clang_complete_flags = open(clang_complete_path, 'r').read().splitlines()
-        logging.info("%s: Using %s" % (os.path.basename(filename), clang_complete_path))
+        logging.info(f"{os.path.basename(filename)}: Using {clang_complete_path}")
         return MakeRelativePathsInFlagsAbsolute(clang_complete_flags,
                                                 os.path.dirname(clang_complete_path))
     except:
@@ -103,8 +102,9 @@ def FlagsFromCompilationDatabase(root, filename):
         database_path = FindNearest(root, 'compile_commands.json', filename, subdirs=SUBDIRS)
         database = ycm_core.CompilationDatabase(os.path.dirname(database_path))
         if not database:
-            logging.info("%s: Compilation database file found but unable to load"
-                         % os.path.basename(filename))
+            logging.info(
+                f"{os.path.basename(filename)}: Compilation database file found but unable to load"
+            )
             return None
         extension = os.path.splitext(filename)[1]
         if extension in HEADER_EXTENSIONS:
@@ -112,89 +112,91 @@ def FlagsFromCompilationDatabase(root, filename):
         else:
             flags = GetFlagsForSourceFile(database_path, database, filename)
         if not flags:
-            logging.info("%s: No compilation info for %s in compilation database"
-                         % (os.path.basename(filename), filename))
+            logging.info(
+                f"{os.path.basename(filename)}: No compilation info for {filename} in compilation database"
+            )
             return None
         return MakeRelativePathsInFlagsAbsolute(flags.compiler_flags_,
                                                 flags.compiler_working_dir_)
     except Exception as e:
-        logging.info("%s: Could not get compilation flags from db: %s"
-                     % (os.path.basename(filename), e))
+        logging.info(
+            f"{os.path.basename(filename)}: Could not get compilation flags from db: {e}"
+        )
         return None
 
 def GetFlagsForHeader(database_path, database, filename):
-    flags = FindFileInDb(database, filename)
-    if flags:
+    if flags := FindFileInDb(database, filename):
         return flags
-    flags = FindSiblingFileForHeader(database, filename)
-    if flags:
+    if flags := FindSiblingFileForHeader(database, filename):
         return flags
-    flags = SearchForTranslationUnitWhichIncludesPath(database_path,
-                                                      database,
-                                                      os.path.dirname(filename),
-                                                      filename)
-    if flags:
+    if flags := SearchForTranslationUnitWhichIncludesPath(
+        database_path, database, os.path.dirname(filename), filename
+    ):
         return flags
     return FindNearestSourceFileInDb(database_path, database, filename)
 
 def GetFlagsForSourceFile(database_path, database, filename):
-    flags = FindFileInDb(database, filename)
-    if flags:
+    if flags := FindFileInDb(database, filename):
         return flags
     return FindNearestSourceFileInDb(database_path, database, filename)
 
 def FindNearest(path, target, filename, subdirs=[]):
     candidates = [os.path.join(path, target)]
-    for subdir in subdirs:
-        candidates.append(os.path.join(path, subdir, target))
+    candidates.extend(os.path.join(path, subdir, target) for subdir in subdirs)
     for candidate in candidates:
-        if(os.path.isfile(candidate) or os.path.isdir(candidate)):
-            logging.info("%s: Found nearest %s at %s"
-                         % (os.path.basename(filename), target, candidate))
+        if (os.path.isfile(candidate) or os.path.isdir(candidate)):
+            logging.info(
+                f"{os.path.basename(filename)}: Found nearest {target} at {candidate}"
+            )
             return candidate
     parent = os.path.dirname(os.path.abspath(path))
-    if(parent == path):
-        raise RuntimeError("could not find %s" % target)
+    if (parent == path):
+        raise RuntimeError(f"could not find {target}")
     return FindNearest(parent, target, filename, subdirs)
 
 def FindFileInDb(database, filename):
-    logging.info("%s: Trying to find file in database..."
-                 % (os.path.basename(filename)))
+    logging.info(
+        f"{os.path.basename(filename)}: Trying to find file in database..."
+    )
     flags = database.GetCompilationInfoForFile(filename)
     if flags.compiler_flags_:
-        logging.info("%s: Found file in database."
-                     % (os.path.basename(filename)))
+        logging.info(f"{os.path.basename(filename)}: Found file in database.")
         return flags
-    logging.info("%s: File not found in compilation db."
-                 % (os.path.basename(filename)))
+    logging.info(
+        f"{os.path.basename(filename)}: File not found in compilation db."
+    )
     return None
 
 def FindSiblingFileForHeader(database, filename):
-    logging.info("%s: Trying to find a sibling source file for that header in database..."
-                 % (os.path.basename(filename)))
+    logging.info(
+        f"{os.path.basename(filename)}: Trying to find a sibling source file for that header in database..."
+    )
     basename = os.path.splitext(filename)[0]
     for extension in SOURCE_EXTENSIONS:
         replacement_file = basename + extension
         if os.path.exists(replacement_file):
             flags = database.GetCompilationInfoForFile(replacement_file)
             if flags.compiler_flags_:
-                logging.info("%s: Found sibling source file: %s"
-                             % (os.path.basename(filename), replacement_file))
+                logging.info(
+                    f"{os.path.basename(filename)}: Found sibling source file: {replacement_file}"
+                )
                 return flags
-    logging.info("%s: Did not find sibling source file."
-                 % (os.path.basename(filename)))
+    logging.info(
+        f"{os.path.basename(filename)}: Did not find sibling source file."
+    )
     return None
 
 def FindNearestSourceFileInDb(database_path, database, srcfile):
-    logging.info("%s: Trying to find nearest source file in database..."
-                 % (srcfile))
+    logging.info(f"{srcfile}: Trying to find nearest source file in database...")
     filename, flags = DoFindNearestSourceFileInDb(database_path, database, srcfile, None)
     if flags:
-        logging.info("%s: Found nearest source file from %s: %s"
-                     % (os.path.basename(srcfile), srcfile, filename))
+        logging.info(
+            f"{os.path.basename(srcfile)}: Found nearest source file from {srcfile}: {filename}"
+        )
         return flags
-    logging.info("%s: Could not find nearest source file from %s in compilation db."
-                % (srcfile, srcfile))
+    logging.info(
+        f"{srcfile}: Could not find nearest source file from {srcfile} in compilation db."
+    )
     return None
 
 # Search subdirectories recursively, then do the same recursively for parent
@@ -224,8 +226,9 @@ def RemoveClosingSlash(path):
     return path
 
 def SearchForTranslationUnitWhichIncludesPath(database_path, database, path, filename):
-    logging.info("%s: Trying to find a translation unit that includes our header's path..."
-                 % (os.path.basename(filename)))
+    logging.info(
+        f"{os.path.basename(filename)}: Trying to find a translation unit that includes our header's path..."
+    )
     with open(database_path, 'r') as f:
         jsonDb = json.load(f)
     path = RemoveClosingSlash(os.path.abspath(path))
@@ -237,11 +240,11 @@ def SearchForTranslationUnitWhichIncludesPath(database_path, database, path, fil
             matchObj = re.match(r'(-I|-isystem)(.*)', currentSwitch)
             includeDir = ""
             isIncFlag = False
-            if currentSwitch == "-I" or currentSwitch == "-isystem":
+            if currentSwitch in ["-I", "-isystem"]:
                 includeDir = nextSwitch
                 isIncFlag = True
             elif matchObj:
-                includeDir = matchObj.group(2)
+                includeDir = matchObj[2]
                 isIncFlag = True
             if not isIncFlag:
                 continue
@@ -255,26 +258,27 @@ def SearchForTranslationUnitWhichIncludesPath(database_path, database, path, fil
                 distance += 1
                 pathCopy, tail = os.path.split(pathCopy)
     found.sort()
-    if len(found) == 0:
-        logging.info("%s: Did not find translation unit which includes path %s"
-                     % (os.path.basename(filename), path))
+    if not found:
+        logging.info(
+            f"{os.path.basename(filename)}: Did not find translation unit which includes path {path}"
+        )
         return None
     else:
         result = found[0][1]
-        logging.info("%s: Found best source file which includes path: %s"
-                     % (os.path.basename(filename), result))
+        logging.info(
+            f"{os.path.basename(filename)}: Found best source file which includes path: {result}"
+        )
         return database.GetCompilationInfoForFile(result)
 
 def GetUserExtraFlags(filename):
     try:
         extra_flags_file = FindNearest(os.path.dirname(filename), ".ycm_extra_flags", filename)
     except:
-        logging.info("%s: No extra flags."
-                 % (os.path.basename(filename)))
+        logging.info(f"{os.path.basename(filename)}: No extra flags.")
         return None
     with open(extra_flags_file, 'r') as f:
         lines = f.readlines()
-    lines = [ line[0:line.find("#")].split() for line in lines ]
+    lines = [line[:line.find("#")].split() for line in lines]
     lines = list(itertools.chain.from_iterable(lines))
     logging.info("%s: Extra flags = [\n\t\t%s\n]"
                  % (os.path.basename(filename), "\n\t\t".join(lines)))

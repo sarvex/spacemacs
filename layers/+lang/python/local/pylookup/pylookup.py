@@ -162,37 +162,37 @@ class IndexProcessor(HTMLParser):
             self.one_entry = False
 
     def handle_data(self, data):
-        if self.tag == 'a':
-            global VERBOSE
-            if self.one_entry:
-                if self.num_of_a == 0:
-                    self.desc = data
+        if self.tag != 'a':
+            return
+        global VERBOSE
+        if self.one_entry:
+            if self.num_of_a == 0:
+                self.desc = data
 
-                    if VERBOSE:
-                        self.desc_cnt += 1
-                        if self.desc_cnt % 100 == 0:
-                            sys.stdout.write("%04d %s\r" %
-                                             (self.desc_cnt,
-                                              self.desc.ljust(80)))
+                if VERBOSE:
+                    self.desc_cnt += 1
+                    if self.desc_cnt % 100 == 0:
+                        sys.stdout.write("%04d %s\r" %
+                                         (self.desc_cnt,
+                                          self.desc.ljust(80)))
                     # extract fist element
                     #  ex) __and__() (in module operator)
-                    if self.level == 1:
-                        self.entry = re.sub("\([^)]+\)", "", self.desc)
+                if self.level == 1:
+                    self.entry = re.sub("\([^)]+\)", "", self.desc)
 
-                        # clean up PEP
-                        self.entry = trim(self.entry)
+                    # clean up PEP
+                    self.entry = trim(self.entry)
 
-                        match = re.search("\([^)]+\)", self.desc)
-                        if match:
-                            self.desc = match.group(0)
+                    if match := re.search("\([^)]+\)", self.desc):
+                        self.desc = match[0]
 
-                    self.desc = trim(re.sub("[()]", "", self.desc))
+                self.desc = trim(re.sub("[()]", "", self.desc))
 
-                self.num_of_a += 1
-                book = build_book(self.url, self.num_of_a)
-                e = Element(self.entry, self.desc, book, self.url)
+            self.num_of_a += 1
+            book = build_book(self.url, self.num_of_a)
+            e = Element(self.entry, self.desc, book, self.url)
 
-                self.writer(e)
+            self.writer(e)
 
     # Overload save_end because of it's strange behaviour.
     def save_end(self):
@@ -210,15 +210,16 @@ def update(db, urls, append=False):
     with open(db, mode) as f:
         def writer(e):
             pickle.dump(e, f)
+
         for url in urls:
             # detech 'file' or 'url' schemes
             parsed = urlparse.urlparse(url)
             if not parsed.scheme or parsed.scheme == "file":
                 dst = abspath(expanduser(parsed.path))
                 if not os.path.exists(dst):
-                    print("Error: %s doesn't exist" % dst)
+                    print(f"Error: {dst} doesn't exist")
                     exit(1)
-                url = "file://%s" % dst
+                url = f"file://{dst}"
             else:
                 url = parsed.geturl()
 
@@ -231,15 +232,15 @@ def update(db, urls, append=False):
                 # for django, numpy, etc. it's genindex.html
                 # for flask, requests, it's genindex/
                 url = url.rstrip("/")
-                potential_urls.append(url + "/genindex-all.html")
-                potential_urls.append(url + "/genindex.html")
-                potential_urls.append(url + "/genindex/")
+                potential_urls.append(f"{url}/genindex-all.html")
+                potential_urls.append(f"{url}/genindex.html")
+                potential_urls.append(f"{url}/genindex/")
 
             success = False
             for index_url in potential_urls:
                 try:
                     print("Wait for a few seconds...")
-                    print("Fetching index from '%s'" % index_url)
+                    print(f"Fetching index from '{index_url}'")
 
                     index = urllib.urlopen(index_url).read()
                     if not issubclass(type(index), str):
@@ -250,14 +251,14 @@ def update(db, urls, append=False):
                         parser.feed(index)
 
                     # success, we don't need to try other potential urls
-                    print("Loaded index from '%s'" % index_url)
+                    print(f"Loaded index from '{index_url}'")
                     success = True
                     break
                 except IOError:
-                    print("Error: fetching file from '%s'" % index_url)
+                    print(f"Error: fetching file from '{index_url}'")
 
             if not success:
-                print("Failed to load index for input '%s'" % url)
+                print(f"Failed to load index for input '{url}'")
 
 
 def lookup(db, key, format_spec, out=sys.stdout, insensitive=True, desc=True):
